@@ -114,6 +114,26 @@ Run tests:
 go test ./...
 ```
 
+## Docker
+
+Build image:
+
+```bash
+docker build -t daily-durood-api .
+```
+
+Run container:
+
+```bash
+docker run --rm -p 8080:8080 --env-file .env daily-durood-api
+```
+
+### Zeabur Note
+
+- Use repository root (`/`) as root directory.
+- Enable Dockerfile-based deployment so Zeabur runs this API container.
+- Provide runtime env vars from dashboard (do not include single quotes in values).
+
 ## API Summary
 
 Detailed spec:

@@ -1,0 +1,15 @@
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+README.md
+API_DOCUMENTATION.md
+openapi.yaml
+backend.md
+plan.md
+steps.md
+bin
+dist
+tmp
+**/*_test.go
