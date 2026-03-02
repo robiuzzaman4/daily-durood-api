@@ -1,0 +1,294 @@
+openapi: 3.1.0
+info:
+  title: Daily Durood API
+  version: 1.0.0
+  description: >-
+    API for user sync, user profile management, subscription status updates,
+    reminder metadata, and internal Clerk webhook/auth validation.
+servers:
+  - url: http://localhost:8080
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        is_subscribed:
+          type: boolean
+        total_email_received:
+          type: integer
+        role:
+          type: string
+          enum:
+            - user
+            - admin
+      required:
+        - id
+        - name
+        - email
+        - is_subscribed
+        - total_email_received
+        - role
+    UsersListResponse:
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+      required:
+        - users
+    MetadataResponse:
+      type: object
+      properties:
+        total_users:
+          type: integer
+        total_emails_sent:
+          type: integer
+      required:
+        - total_users
+        - total_emails_sent
+    UpdateSubscriptionRequest:
+      type: object
+      properties:
+        is_subscribed:
+          type: boolean
+      required:
+        - is_subscribed
+    InternalAuthCheckResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum:
+            - user
+            - admin
+      required:
+        - id
+        - email
+        - role
+    InternalWebhookAck:
+      type: object
+      properties:
+        ok:
+          type: boolean
+      required:
+        - ok
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Checks API availability and database connectivity.
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: ok
+        '503':
+          description: Database unavailable
+  /users/me:
+    get:
+      summary: Get current user profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Missing or invalid token, or user not found
+  /users:
+    get:
+      summary: Get all users (admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsersListResponse'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (non-admin)
+  /users/{id}:
+    get:
+      summary: Get single user by ID (self or admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: User not found
+    patch:
+      summary: Update user subscription status (self or admin)
+      description: Updates only is_subscribed.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSubscriptionRequest'
+            examples:
+              unsubscribe:
+                value:
+                  is_subscribed: false
+              subscribe:
+                value:
+                  is_subscribed: true
+      responses:
+        '200':
+          description: Updated user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid payload or user ID
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: User not found
+  /metadata:
+    get:
+      summary: Get aggregate metadata
+      description: Returns total users and total emails sent.
+      responses:
+        '200':
+          description: Metadata counters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetadataResponse'
+        '500':
+          description: Failed to load metadata
+  /internal/auth/check:
+    get:
+      summary: Internal auth validation
+      description: Validates bearer token and returns minimal identity payload.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Authenticated user identity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalAuthCheckResponse'
+        '401':
+          description: Unauthorized
+  /internal/webhooks/clerk:
+    post:
+      summary: Clerk webhook receiver (internal)
+      description: Receives Clerk events and syncs users for user.created and user.updated.
+      parameters:
+        - name: svix-id
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: svix-timestamp
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: svix-signature
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                  example: user.created
+                data:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    first_name:
+                      type: string
+                    last_name:
+                      type: string
+                    username:
+                      type: string
+                    primary_email_address_id:
+                      type: string
+                    email_addresses:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                          email_address:
+                            type: string
+      responses:
+        '200':
+          description: Webhook accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalWebhookAck'
+        '400':
+          description: Invalid payload or body
+        '401':
+          description: Invalid webhook signature
+        '405':
+          description: Method not allowed
+        '500':
+          description: Failed to sync user
