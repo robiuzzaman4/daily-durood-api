@@ -168,6 +168,25 @@ func (r *UserRepository) CountUsers(ctx context.Context) (int64, error) {
 	return total, nil
 }
 
+func (r *UserRepository) IncrementTotalEmailReceived(ctx context.Context, id string, delta int) error {
+	const query = `
+		UPDATE users
+		SET total_email_received = total_email_received + $2,
+		    updated_at = NOW()
+		WHERE id = $1
+	`
+
+	result, err := r.db.Exec(ctx, query, id, delta)
+	if err != nil {
+		return fmt.Errorf("increment total_email_received for user %s: %w", id, err)
+	}
+	if result.RowsAffected() == 0 {
+		return user.ErrNotFound
+	}
+
+	return nil
+}
+
 func (r *UserRepository) CountTotalEmailsSent(ctx context.Context) (int64, error) {
 	const query = `SELECT COALESCE(SUM(total_email_received), 0) FROM users`
 

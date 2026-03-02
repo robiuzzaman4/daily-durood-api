@@ -15,6 +15,7 @@ type Repository interface {
 	GetByEmail(ctx context.Context, email string) (*User, error)
 	ListSubscribed(ctx context.Context) ([]User, error)
 	ListByScope(ctx context.Context, requesterID string, requesterRole Role) ([]User, error)
+	IncrementTotalEmailReceived(ctx context.Context, id string, delta int) error
 	CountUsers(ctx context.Context) (int64, error)
 	CountTotalEmailsSent(ctx context.Context) (int64, error)
 }

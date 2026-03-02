@@ -66,6 +66,63 @@ func NewServer(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, users 
 		_ = writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 	}))))
 
+	mux.Handle("/me", authMW.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestUser, ok := middleware.UserFromContext(r.Context())
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		profile, err := users.GetByID(r.Context(), requestUser.ID)
+		if errors.Is(err, user.ErrNotFound) {
+			http.Error(w, "user not found", http.StatusNotFound)
+			return
+		}
+		if err != nil {
+			http.Error(w, "failed to load profile", http.StatusInternalServerError)
+			return
+		}
+
+		_ = writeJSON(w, http.StatusOK, profile)
+	})))
+
+	mux.Handle("/admin/users", authMW.RequireAuth(middleware.RequireRole(user.RoleAdmin)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestUser, ok := middleware.UserFromContext(r.Context())
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		allUsers, err := users.ListByScope(r.Context(), requestUser.ID, requestUser.Role)
+		if err != nil {
+			http.Error(w, "failed to load users", http.StatusInternalServerError)
+			return
+		}
+
+		_ = writeJSON(w, http.StatusOK, map[string]any{
+			"users": allUsers,
+		})
+	}))))
+
+	mux.Handle("/metadata", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		totalUsers, err := users.CountUsers(r.Context())
+		if err != nil {
+			http.Error(w, "failed to load metadata", http.StatusInternalServerError)
+			return
+		}
+
+		totalEmailsSent, err := users.CountTotalEmailsSent(r.Context())
+		if err != nil {
+			http.Error(w, "failed to load metadata", http.StatusInternalServerError)
+			return
+		}
+
+		_ = writeJSON(w, http.StatusOK, map[string]int64{
+			"total_users":       totalUsers,
+			"total_emails_sent": totalEmailsSent,
+		})
+	}))
+
 	return &Server{
 		httpServer: &http.Server{
 			Addr:              fmt.Sprintf(":%s", cfg.ServerPort),
