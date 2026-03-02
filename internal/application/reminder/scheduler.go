@@ -2,6 +2,8 @@ package reminder
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -57,15 +59,18 @@ func (s *Scheduler) Shutdown(ctx context.Context) error {
 }
 
 func (s *Scheduler) runJob() {
-	ctx, cancel := context.WithTimeout(context.Background(), jobTimeout)
+	jobID := generateJobID()
+	s.logger.Info("daily reminder dispatch started", "job_id", jobID)
+
+	ctx, cancel := context.WithTimeout(withJobID(context.Background(), jobID), jobTimeout)
 	defer cancel()
 
 	if err := s.dispatcher.Dispatch(ctx); err != nil {
-		s.logger.Error("daily reminder dispatch failed", "error", err)
+		s.logger.Error("daily reminder dispatch failed", "job_id", jobID, "error", err)
 		return
 	}
 
-	s.logger.Info("daily reminder dispatch completed")
+	s.logger.Info("daily reminder dispatch completed", "job_id", jobID)
 }
 
 func parseClock(raw string) (hour int, minute int, err error) {
@@ -76,4 +81,12 @@ func parseClock(raw string) (hour int, minute int, err error) {
 	}
 
 	return parsed.Hour(), parsed.Minute(), nil
+}
+
+func generateJobID() string {
+	buf := make([]byte, 8)
+	if _, err := rand.Read(buf); err != nil {
+		return time.Now().UTC().Format("20060102150405.000000000")
+	}
+	return hex.EncodeToString(buf)
 }

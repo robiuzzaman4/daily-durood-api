@@ -6,17 +6,28 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/robiuzzaman4/daily-durood-api/internal/domain/user"
 )
 
 type UserRepository struct {
-	db *pgxpool.Pool
+	db dbQuerier
 }
 
 func NewUserRepository(db *pgxpool.Pool) *UserRepository {
+	return NewUserRepositoryWithQuerier(db)
+}
+
+func NewUserRepositoryWithQuerier(db dbQuerier) *UserRepository {
 	return &UserRepository{db: db}
+}
+
+type dbQuerier interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
 func (r *UserRepository) Create(ctx context.Context, u user.User) (*user.User, error) {

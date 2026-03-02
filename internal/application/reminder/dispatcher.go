@@ -30,12 +30,14 @@ func NewDispatcher(users user.Repository, emailSender *EmailService, workerLimit
 }
 
 func (d *Dispatcher) Dispatch(ctx context.Context) error {
+	jobID := jobIDFromContext(ctx)
+
 	recipients, err := d.users.ListSubscribed(ctx)
 	if err != nil {
 		return fmt.Errorf("load subscribed users: %w", err)
 	}
 	if len(recipients) == 0 {
-		d.logger.Info("no subscribed users found for daily reminder")
+		d.logger.Info("no subscribed users found for daily reminder", "job_id", jobID)
 		return nil
 	}
 
@@ -52,16 +54,16 @@ func (d *Dispatcher) Dispatch(ctx context.Context) error {
 			defer wg.Done()
 			for recipient := range jobs {
 				if err := d.emailSender.SendDailyDurood(ctx, recipient); err != nil {
-					d.logger.Error("failed to send daily reminder", "user_id", recipient.ID, "email", recipient.Email, "error", err)
+					d.logger.Error("failed to send daily reminder", "job_id", jobID, "user_id", recipient.ID, "email", recipient.Email, "error", err)
 					continue
 				}
 
 				if err := d.users.IncrementTotalEmailReceived(ctx, recipient.ID, 1); err != nil {
-					d.logger.Error("failed to increment total_email_received", "user_id", recipient.ID, "error", err)
+					d.logger.Error("failed to increment total_email_received", "job_id", jobID, "user_id", recipient.ID, "error", err)
 					continue
 				}
 
-				d.logger.Info("daily reminder sent", "user_id", recipient.ID, "email", recipient.Email)
+				d.logger.Info("daily reminder sent", "job_id", jobID, "user_id", recipient.ID, "email", recipient.Email)
 			}
 		}()
 	}

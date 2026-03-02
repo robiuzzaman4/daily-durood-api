@@ -12,15 +12,19 @@ import (
 )
 
 type Config struct {
-	AppEnv             string
-	ServerPort         string
-	DatabaseURL        string
-	UnosendAPIKey      string
-	EmailSendTime      string
-	EmailSendLimit     int
-	ClerkWebhookSecret string
-	ClerkJWKSURL       string
-	ClerkIssuer        string
+	AppEnv               string
+	ServerPort           string
+	DatabaseURL          string
+	UnosendAPIKey        string
+	EmailSendTime        string
+	EmailSendLimit       int
+	CORSAllowedOrigins   []string
+	CORSAllowedMethods   []string
+	CORSAllowedHeaders   []string
+	CORSAllowCredentials bool
+	ClerkWebhookSecret   string
+	ClerkJWKSURL         string
+	ClerkIssuer          string
 }
 
 func Load() (*Config, error) {
@@ -62,6 +66,10 @@ func Load() (*Config, error) {
 	if cfg.ClerkJWKSURL, err = required("CLERK_JWKS_URL"); err != nil {
 		return nil, err
 	}
+	cfg.CORSAllowedOrigins = parseCSVOrDefault(os.Getenv("CORS_ALLOWED_ORIGINS"), []string{"*"})
+	cfg.CORSAllowedMethods = parseCSVOrDefault(os.Getenv("CORS_ALLOWED_METHODS"), []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"})
+	cfg.CORSAllowedHeaders = parseCSVOrDefault(os.Getenv("CORS_ALLOWED_HEADERS"), []string{"Authorization", "Content-Type", "X-Request-ID"})
+	cfg.CORSAllowCredentials = strings.EqualFold(strings.TrimSpace(os.Getenv("CORS_ALLOW_CREDENTIALS")), "true")
 	cfg.ClerkIssuer = strings.TrimSpace(os.Getenv("CLERK_ISSUER"))
 
 	return cfg, nil
@@ -90,4 +98,21 @@ func getOrDefault(key, fallback string) string {
 		return fallback
 	}
 	return strings.TrimSpace(val)
+}
+
+func parseCSVOrDefault(raw string, fallback []string) []string {
+	items := strings.Split(raw, ",")
+	values := make([]string, 0, len(items))
+	for _, item := range items {
+		trimmed := strings.TrimSpace(item)
+		if trimmed == "" {
+			continue
+		}
+		values = append(values, trimmed)
+	}
+
+	if len(values) == 0 {
+		return fallback
+	}
+	return values
 }

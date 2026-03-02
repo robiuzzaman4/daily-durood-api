@@ -48,12 +48,12 @@ func New(ctx context.Context) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("initialize reminder scheduler: %w", err)
 	}
-	scheduler.Start()
 
 	server, err := httpserver.NewServer(cfg, appLogger, db, userRepository)
 	if err != nil {
 		return nil, fmt.Errorf("initialize http server: %w", err)
 	}
+	scheduler.Start()
 
 	return &App{
 		Config:    cfg,
@@ -68,11 +68,11 @@ func (a *App) Shutdown(ctx context.Context) error {
 	shutdownCtx, cancel := context.WithTimeout(ctx, shutdownTimeout)
 	defer cancel()
 
-	if err := a.Server.Shutdown(shutdownCtx); err != nil {
-		return fmt.Errorf("shutdown http server: %w", err)
-	}
 	if err := a.Scheduler.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("shutdown scheduler: %w", err)
+	}
+	if err := a.Server.Shutdown(shutdownCtx); err != nil {
+		return fmt.Errorf("shutdown http server: %w", err)
 	}
 
 	a.DB.Close()

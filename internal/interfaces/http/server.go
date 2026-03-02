@@ -125,8 +125,18 @@ func NewServer(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, users 
 
 	return &Server{
 		httpServer: &http.Server{
-			Addr:              fmt.Sprintf(":%s", cfg.ServerPort),
-			Handler:           mux,
+			Addr: fmt.Sprintf(":%s", cfg.ServerPort),
+			Handler: middleware.RequireRequestID(
+				middleware.LogRequests(
+					logger,
+					middleware.CORS(middleware.CORSConfig{
+						AllowedOrigins:   cfg.CORSAllowedOrigins,
+						AllowedMethods:   cfg.CORSAllowedMethods,
+						AllowedHeaders:   cfg.CORSAllowedHeaders,
+						AllowCredentials: cfg.CORSAllowCredentials,
+					}, mux),
+				),
+			),
 			ReadHeaderTimeout: 5 * time.Second,
 		},
 		logger: logger,
